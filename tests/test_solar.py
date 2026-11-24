@@ -75,3 +75,28 @@ def test_scenario_overrides_are_scoped():
     with pytest.raises(KeyError):
         with config.overrides({"subsidy.pm_surya_ghar.typo": 1}):
             solar.subsidy_inr(1)
+
+
+def test_estimated_units_are_fine_grained():
+    """Coarse steps made whole blocks of homes flip together, so different policies tied exactly."""
+    assert solar.estimated_units(10) == 100 and solar.estimated_units(10_000) == 2000   # clamped
+    assert solar.estimated_units(117) == 351          # 50-unit steps would say 350
+    units = {solar.estimated_units(m2) for m2 in range(40, 600)}
+    assert len(units) > 500
+
+
+def _first_viable_units(overrides):
+    from solaratlas import config
+    with config.overrides(overrides):
+        tv = t.as_of()
+        for u in range(100, 1000):
+            p = solar.best_size(1380, u, tv, max_kwp=3)[0]["payback_years"]
+            if p is not None and p <= 7:
+                return u
+
+
+def test_different_policies_have_different_viability_thresholds():
+    from solaratlas import config
+    sc = config.load("scenarios")["scenarios"]
+    first = {k: _first_viable_units(sc[k]["overrides"] or {}) for k in ("baseline", "subsidy_up", "cheaper_panels")}
+    assert first["cheaper_panels"] < first["subsidy_up"] < first["baseline"]

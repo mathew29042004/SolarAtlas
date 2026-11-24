@@ -13,29 +13,30 @@ It's built as a production-style data platform: **PySpark + Delta Lake** medalli
 data, atomic publishing to **DuckDB**, a **FastAPI + MapLibre** dashboard, and a **Databricks Asset
 Bundle** that runs the same code as a 7-task job.
 
-## Results: Tamil Nadu (measured 2026-11-23)
+## Results: Tamil Nadu (measured 2026-11-24)
 
 | | |
 |---|---|
 | Buildings analysed | **25,149,034** (30.6M downloaded, 5.45M outside the state clipped, 521 quarantined) |
-| Full pipeline on a 16 GB laptop | **~12 min**, bronze → publish |
+| Full pipeline on a 16 GB laptop | **14.7 min** from empty tables, bronze → publish (4 GB driver) |
 | Technical rooftop potential | 99.1 GW → 136 TWh/yr (upper bound, not a forecast) |
-| Roofs that pay back within 7 years | **30.7 lakh** (9.6 GW), needing ₹51,180 crore of investment |
-| Homes among them | 27.7 lakh |
-| Building-type classifier | Spark ML random forest on 25k OSM labels; deployed-rule accuracy in RESULTS.md |
+| Roofs that pay back within 7 years | **31.5 lakh** (9.6 GW), needing ₹51,423 crore of investment |
+| Homes among them | 28.8 lakh |
+| Building-type classifier | Spark ML random forest on 25k OSM labels; 81.1% held-out accuracy, 78.9% for the deployed rule |
 | Tests | unit, API, Spark integration; 12-check quality gate on every run |
 
 Full, regenerated numbers: [docs/RESULTS.md](docs/RESULTS.md) (written by `scripts/results.py`).
 
 **What the data says**
 
-- **Policy:** cheaper panels (−20% system cost) make as many homes viable as raising the subsidy by a
-  third (37.3 lakh vs 27.7 lakh today), but cost the state **₹5,471 crore less** in subsidy.
-  Withdrawing the subsidy cuts viable homes by 56%.
-- **The 500-unit cliff:** homes on ≤500 units per bill get 200 free units, so solar barely pays for
-  light users. Above 500 units every unit is billed at higher slabs, and paybacks drop to about 3 years.
-- **Metering matters as much as subsidy:** for a 1,200-unit Chennai home, net metering is worth ~39%
-  more per year than self-use only (hourly simulation over all of 2025).
+- **Policy:** cheaper panels (−20% system cost) make more homes viable than raising the subsidy by a
+  third (41.3 vs 38.8 lakh, from 28.8 lakh today) and cost **₹4,944 crore less** in subsidy.
+  Withdrawing the subsidy cuts viable homes by 57%.
+- **The 500-unit cliff:** homes on ≤500 units per bill get 200 free units, so solar is slow to pay back
+  for light users (8.0 years at 350 units). Crossing 500 removes that help: median payback goes from
+  5.2 years at 500 units to 3.9 at 501.
+- **Metering rules matter:** for a 1,200-unit Chennai home with 3 kW, net metering saves 64% more per
+  year than self-use only (₹38,806 vs ₹23,601; hourly simulation over all of 2025).
 - **Where:** Coimbatore (7.4 GW), Tiruppur (6.1 GW, textile factory roofs) and Chennai (5.5 GW) lead.
 
 ## Architecture
@@ -123,7 +124,10 @@ bronze → silver → features → classify → gold → quality_gate → mainta
 databricks bundle deploy -t dev
 ```
 
-Landing data is produced locally and uploaded with `scripts/upload_landing.sh`.
+Landing data is produced locally and uploaded with `scripts/upload_region.sh coimbatore` (one city) or
+`scripts/upload_landing.sh` (everything). **Verified on Free Edition serverless (2026-11-24), all of Tamil Nadu:** 30,601,670 rows in,
+25,149,034 buildings out, all 7 tasks and 12 checks passed, about 24 minutes of task time. Building
+counts and technical potential equal the laptop build exactly; viable homes agree within 0.03%.
 
 ## Layout
 

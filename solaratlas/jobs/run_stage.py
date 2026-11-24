@@ -8,12 +8,22 @@ tables only (no in-memory handoff), so any task can be retried on its own.
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
 import sys
 
 # make the bundle's source folder importable when Databricks runs this file directly
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+# (Databricks exec()s the file, so __file__ is undefined there; the code object still knows its path)
+_here = inspect.currentframe().f_code.co_filename
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(_here), "..", "..")))
+
+# config reads SA_DATA when imported, so --data must be applied before that import
+_pre = argparse.ArgumentParser(add_help=False)
+_pre.add_argument("--data")
+_data = _pre.parse_known_args()[0].data
+if _data:
+    os.environ["SA_DATA"] = _data
 
 from solaratlas import config  # noqa: E402
 from solaratlas.lakehouse import bronze, classify, features, gold, quality, silver  # noqa: E402
@@ -28,8 +38,6 @@ def main(argv=None):
     p.add_argument("--run-id", default="manual")
     p.add_argument("--data", help="override SA_DATA (e.g. a Unity Catalog volume path)")
     a = p.parse_args(argv)
-    if a.data:
-        os.environ["SA_DATA"] = a.data
     region, run_id = config.region(a.region).key, a.run_id
     out: dict = {}
     if a.stage == "bronze":

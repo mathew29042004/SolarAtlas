@@ -23,7 +23,7 @@ from pyspark.sql import types as T
 from pyspark.sql.window import Window
 
 from solaratlas import config
-from solaratlas.lakehouse.spark import get
+from solaratlas.lakehouse.spark import get, keep, release
 from solaratlas.model import solar
 from solaratlas.model import tariff as tariffs
 
@@ -69,7 +69,8 @@ def units_expr():
     r = config.load("assumptions")["residential"]
     u = F.least(F.greatest(F.col("footprint_m2") * r["units_per_m2_bimonthly"], F.lit(r["min_units"])),
                 F.lit(r["max_units"]))
-    return (F.round(u / 50) * 50).cast("int")
+    step = r["units_step"]
+    return (F.floor(u / step + 0.5) * step).cast("int")
 
 
 def cell_yield() -> DataFrame:
@@ -120,7 +121,7 @@ def base(region_key: str, ids: DataFrame | None = None) -> DataFrame:
 def residential_lookup(keys: list[tuple], scenario: str = "baseline") -> DataFrame:
     """Best home system per (cell, units, roof cap, shade) under the active config/overrides.
 
-    A few thousand distinct keys, computed on the driver with the same Python model the API
+    About 148k distinct keys statewide, computed on the driver with the same Python model the API
     uses, then broadcast-joined: no Python UDF over millions of rows.
     """
     tv = tariffs.as_of()
@@ -277,12 +278,12 @@ def building_solar(region_key: str, run_id: str, incremental: bool = True) -> di
     for p in parts[1:]:
         allc = allc.unionByName(p)
     # a delete in silver.buildings wins over any other change for that id
-    changes = (allc.groupBy("id").agg(F.max(F.when(F.col("_change_type") == "delete", 1).otherwise(0)).alias("d"))
-               .cache())
+    changes = keep(allc.groupBy("id").agg(
+        F.max(F.when(F.col("_change_type") == "delete", 1).otherwise(0)).alias("d")), f"gold_changes_{region_key}")
     n_changed = changes.count()
     total = _count(gold_path, region_key)
     if n_changed > FULL_REBUILD_SHARE * total or n_changed > MAX_BROADCAST_IDS:
-        changes.unpersist()
+        release(changes)
         print(f"[gold] {n_changed:,} of {total:,} changed (over {FULL_REBUILD_SHARE:.0%} or {MAX_BROADCAST_IDS:,} ids); full rebuild instead")
         b = _materialise(base(region_key), f"gold_base_{region_key}")
         _write(_solar_rows(b, run_id), "building_solar", region_key)
@@ -298,7 +299,7 @@ def building_solar(region_key: str, run_id: str, incremental: bool = True) -> di
     if deletes.limit(1).count():
         (tgt.alias("t").merge(deletes.alias("d"), f"t.id = d.id AND t.region = '{region_key}'")
             .whenMatchedDelete().execute())
-    changes.unpersist()
+    release(changes)
     save_marks()
     print(f"[gold] incremental: {n_changed} changed building(s)")
     return {"mode": "incremental", "changed": n_changed, "rows": _count(gold_path, region_key)}
@@ -365,16 +366,17 @@ def area_summaries(region_key: str, run_id: str) -> dict:
 def scenarios(region_key: str, run_id: str) -> int:
     """Policy what-ifs per district.
 
-    Millions of homes collapse to a few thousand groups first (same district, cell,
+    Millions of homes collapse to far fewer groups first (same district, cell,
     consumption, roof cap and shade give identical economics), so each scenario only re-prices
     those groups: aggregate before join. Non-domestic roofs are fewer and re-priced per row.
     """
     spark = get()
     b = _read("gold", "building_solar").where(F.col("region") == region_key)
-    res_groups = (b.where("building_type = 'residential' AND cap_bucket IS NOT NULL AND district IS NOT NULL")
-                  .groupBy("district", *LOOKUP_KEYS).agg(F.count("*").alias("n")).cache())
-    nd_base = (b.where("building_type != 'residential' AND eligible AND district IS NOT NULL")
-               .select("district", "building_type", "roof_kwp", "eff_yield").cache())
+    res_groups = keep(b.where("building_type = 'residential' AND cap_bucket IS NOT NULL AND district IS NOT NULL")
+                      .groupBy("district", *LOOKUP_KEYS).agg(F.count("*").alias("n")),
+                      f"scenario_homes_{region_key}")
+    nd_base = keep(b.where("building_type != 'residential' AND eligible AND district IS NOT NULL")
+                   .select("district", "building_type", "roof_kwp", "eff_yield"), f"scenario_nd_{region_key}")
     keys = [tuple(r) for r in res_groups.select(*LOOKUP_KEYS).distinct().collect()]
     cfg = config.load("scenarios")
     viable = float(cfg["viable_payback_years"])
@@ -411,8 +413,8 @@ def scenarios(region_key: str, run_id: str) -> int:
     out = (spark.createDataFrame(parts).withColumn("region", F.lit(region_key))
            .withColumn("_run_id", F.lit(run_id)))
     _write(out, "scenario_district", region_key)
-    res_groups.unpersist()
-    nd_base.unpersist()
+    release(res_groups)
+    release(nd_base)
     return len(parts)
 
 

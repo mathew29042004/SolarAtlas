@@ -1,6 +1,8 @@
 """PV yield, subsidy and household economics. Pure functions over config/assumptions.yaml."""
 from __future__ import annotations
 
+import math
+
 from solaratlas import config
 from solaratlas.model import tariff as tariffs
 
@@ -104,10 +106,11 @@ def household_economics(kwp: float, annual_kwh_per_kwp: float, bimonthly_units: 
 
 
 def estimated_units(footprint_m2: float) -> int:
-    """Bimonthly consumption guess for a home from its footprint, rounded to 50 (assumption)."""
+    """Bimonthly consumption guess for a home from its footprint (assumption)."""
     r = A()["residential"]
     u = min(max(footprint_m2 * r["units_per_m2_bimonthly"], r["min_units"]), r["max_units"])
-    return int(round(u / 50) * 50)
+    step = r["units_step"]
+    return int(math.floor(u / step + 0.5) * step)   # half-up, like the Spark twin
 
 
 def shading_loss(built_frac_ring: float, footprint_m2: float) -> float:

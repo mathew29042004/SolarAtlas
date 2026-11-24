@@ -11,25 +11,25 @@ variables:
   region:
     default: tamil_nadu
   catalog:
-    default: solaratlas
+    default: workspace          # Free Edition ships with this catalog
   schema:
-    default: core
+    default: solaratlas
   data_path:
     description: Unity Catalog volume holding landing/, lake/ and models/
-    default: /Volumes/solaratlas/core/data
+    default: /Volumes/workspace/solaratlas/data
 
 include: []
 
 resources:
   schemas:
-    core:
+    solaratlas:
       catalog_name: ${var.catalog}
       name: ${var.schema}
       comment: SolarAtlas lakehouse
   volumes:
     data:
       catalog_name: ${var.catalog}
-      schema_name: ${var.schema}
+      schema_name: ${resources.schemas.solaratlas.name}
       name: data
       volume_type: MANAGED
 
@@ -40,13 +40,16 @@ resources:
       environments:
         - environment_key: default
           spec:
-            client: "2"
+            client: "4"          # first serverless environment with Spark ML
             dependencies: [pyyaml, "shapely>=2.0", "h3>=4.1", requests, "duckdb>=1.1"]
       parameters:
         - {name: region, default: "${var.region}"}
       tasks:
         - task_key: bronze
           environment_key: default
+          max_retries: 0             # fail fast: Free Edition has a daily compute quota
+          disable_auto_optimization: true   # else serverless retries anyway
+          timeout_seconds: 10800
           spark_python_task:
             python_file: solaratlas/jobs/run_stage.py
             parameters: [--stage, bronze, --region, "{{job.parameters.region}}",
@@ -54,6 +57,9 @@ resources:
         - task_key: silver
           depends_on: [{task_key: bronze}]
           environment_key: default
+          max_retries: 0             # fail fast: Free Edition has a daily compute quota
+          disable_auto_optimization: true   # else serverless retries anyway
+          timeout_seconds: 10800
           spark_python_task:
             python_file: solaratlas/jobs/run_stage.py
             parameters: [--stage, silver, --region, "{{job.parameters.region}}",
@@ -61,6 +67,9 @@ resources:
         - task_key: features
           depends_on: [{task_key: silver}]
           environment_key: default
+          max_retries: 0             # fail fast: Free Edition has a daily compute quota
+          disable_auto_optimization: true   # else serverless retries anyway
+          timeout_seconds: 10800
           spark_python_task:
             python_file: solaratlas/jobs/run_stage.py
             parameters: [--stage, features, --region, "{{job.parameters.region}}",
@@ -68,6 +77,9 @@ resources:
         - task_key: classify
           depends_on: [{task_key: features}]
           environment_key: default
+          max_retries: 0             # fail fast: Free Edition has a daily compute quota
+          disable_auto_optimization: true   # else serverless retries anyway
+          timeout_seconds: 10800
           spark_python_task:
             python_file: solaratlas/jobs/run_stage.py
             parameters: [--stage, classify, --region, "{{job.parameters.region}}",
@@ -75,6 +87,9 @@ resources:
         - task_key: gold
           depends_on: [{task_key: classify}]
           environment_key: default
+          max_retries: 0             # fail fast: Free Edition has a daily compute quota
+          disable_auto_optimization: true   # else serverless retries anyway
+          timeout_seconds: 10800
           spark_python_task:
             python_file: solaratlas/jobs/run_stage.py
             parameters: [--stage, gold, --region, "{{job.parameters.region}}",
@@ -82,6 +97,9 @@ resources:
         - task_key: quality_gate
           depends_on: [{task_key: gold}]
           environment_key: default
+          max_retries: 0             # fail fast: Free Edition has a daily compute quota
+          disable_auto_optimization: true   # else serverless retries anyway
+          timeout_seconds: 10800
           spark_python_task:
             python_file: solaratlas/jobs/run_stage.py
             parameters: [--stage, quality, --region, "{{job.parameters.region}}",
@@ -89,6 +107,9 @@ resources:
         - task_key: maintain
           depends_on: [{task_key: quality_gate}]
           environment_key: default
+          max_retries: 0             # fail fast: Free Edition has a daily compute quota
+          disable_auto_optimization: true   # else serverless retries anyway
+          timeout_seconds: 10800
           spark_python_task:
             python_file: solaratlas/jobs/run_stage.py
             parameters: [--stage, maintain, --region, "{{job.parameters.region}}",
@@ -99,6 +120,5 @@ resources:
         pause_status: PAUSED
 
 targets:
-  dev:
-    mode: development
+  dev:        # no `mode: development`: it would prefix the schema name and break data_path
     default: true

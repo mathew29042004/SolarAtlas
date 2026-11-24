@@ -75,7 +75,7 @@ Databricks the same functions run as a Job (`databricks/job.yml`).
 **Delta maintenance.** `./sa maintain` runs OPTIMIZE, Z-ORDER by (lon, lat) on the building tables
 (bbox queries skip files), and VACUUM with 7 days of time travel kept.
 
-**Spark tuned for a laptop.** `local[4]`, 2 GB driver (1 GB for tests), 8 shuffle partitions
+**Spark tuned for a laptop.** `local[4]`, 2 GB driver (4 GB statewide, 1 GB for tests), 64 shuffle partitions
 instead of 200, AQE on, UI off, every temp dir inside the project. Spark tests sit behind a marker
 so the default `./sa test` never starts a JVM.
 
@@ -107,11 +107,11 @@ evaluated twice inside one write (once for the distinct lookup keys, once for th
 shuffle partitions meant ~600 MB per task. Fixes: materialise the joined base once to a `_tmp` Delta
 table; 64 shuffle partitions (AQE coalesces them back for small regions); a larger execution-memory
 fraction; and, for incremental runs, narrowing every input to the changed ids *before* joining.
-Peak JVM stayed under 4 GB afterwards.
+Peak JVM resident memory, sampled every 2 s: 5.0 GB for a full statewide build with a 4 GB heap.
 
 ## Building type classifier
 
-Only ~0.6% of footprints carry a type tag. Spark ML random forest on the tagged ones (25k statewide):
+Only ~0.1% of footprints (25,377) carry a usable type tag. Spark ML random forest on the tagged ones (25k statewide):
 features from shape (area, compactness, elongation, vertices), density (built-up share of the
 H3 res-11 ring, buildings per res-9 cell), nearby places by group (583k Overture POIs) and land-use
 zone. Classes are reweighted by inverse frequency; quality is reported as **macro-F1 and per-class
@@ -135,10 +135,16 @@ footprint (assumption, flagged). Shops, factories, institutions: no subsidy, fla
 most output self-consumed.
 
 **Aggregate before join.** Homes with the same (district, climate cell, consumption, roof cap, shade
-bucket) have identical economics, so millions of homes collapse to a few thousand groups. Each
-policy scenario re-prices only those groups, which is why 5 scenarios cost seconds, not 5 full
+bucket) have identical economics, so 19.2M homes collapse to about 148,000 priced combinations. Each
+policy scenario re-prices only those groups, not every home, so 5 scenarios do not need 5 full
 passes. Scenarios are `config/scenarios.yaml` overrides applied through a scoped `config.overrides()`
 context, so the model code has no scenario logic.
+
+**Rounding can fake a result (found and fixed 2026-11-24).** Consumption was first rounded to 50 units,
+so 957,452 homes shared one value and flipped between viable and not together. "Subsidy +33%" and
+"cost −20%" then tied at exactly 3,729,004 homes and the published conclusion was wrong. The step is
+now 1 unit. Steps of 1 and 2 agree within 0.6% (viable homes) and finer shade buckets move results
+by under 0.1%. A test now requires the policies to have different thresholds.
 
 ## Hourly simulation and metering
 
@@ -169,6 +175,34 @@ at the volume. Tasks hand off only through Delta tables, so any task can be retr
 files are made on the laptop (Free Edition limits outbound internet) and uploaded with
 `scripts/upload_landing.sh`.
 
+**Verified 2026-11-24 on Free Edition serverless, all of Tamil Nadu** (2.67 GB uploaded, every file size
+checked). Task times: bronze 100 s, silver 373 s, features 94 s, classify 211 s, gold 317 s, quality 26 s,
+maintain 311 s. After the split fix below, classify, gold and quality ran again. Compared with the laptop:
+
+| | Laptop | Databricks |
+|---|---|---|
+| Buildings, roof area, technical potential, CO2, quarantined | – | identical |
+| Viable homes | 2,879,992 | 2,879,064 (-0.03%) |
+| Viable roofs | 3,151,922 | 3,140,698 (-0.36%) |
+| Policy scenarios (viable homes) | – | within 0.06% |
+| Classifier accuracy (same test buildings) | 81.1% | 81.3% |
+| Institutional buildings | 116,313 | 100,113 (-14%) |
+
+What serverless needed: environment 4 for Spark ML, project code pickled into UDFs, no `cache()`,
+`_metadata.file_path` instead of `input_file_name()`, no reliance on `__file__`, retries off (daily
+quota), and no bundle development mode (it renames the schema).
+
+**A leak found by checking the numbers.** The first statewide run there reported 84.7% accuracy against
+80.6% on the laptop. Train plus test rows came to 25,532 for 25,377 labels: `randomSplit(seed)` had been
+evaluated on differently partitioned reads, so buildings sat on both sides. The split is now a hash of
+the building id (same buildings on every machine, zero overlap verified) and the run fails if the counts
+don't add up.
+
+**Incremental at scale, measured.** Retraining changed 125,612 building types on Databricks (gold stage
+264 s; the full rebuild before it took 317 s) and 102,837 on the laptop (gold stage 348 s; the last full
+rebuild took 229 s). So on the laptop incremental was *slower* at this size: it rewrites fewer rows, but
+its MERGE and the summaries that always recompute cost more than a plain partition overwrite.
+
 ## Model
 
 - Usable roof: 40–65% of the footprint by size (setbacks, water tanks, stair rooms, shade).
@@ -183,12 +217,16 @@ files are made on the laptop (Free Edition limits outbound internet) and uploade
 
 ## Limitations (say these before an interviewer does)
 
-1. No shading, tilt or orientation: footprints are 2D. Usable fraction is a blanket assumption.
+1. No measured shading, tilt or orientation: footprints are 2D (shading is a crowding proxy, see 6). Usable fraction is a blanket assumption.
 2. Climate cells are 0.5°: irradiance varies between districts, not within a city.
 3. Building type is model-estimated for >99% of buildings (see classifier metrics). Home
    consumption is estimated from footprint size, not metered.
 4. Tariff slabs come from secondary sources and are marked unverified until checked against
    the TNERC order. Capex is an assumption.
-5. Technical potential (2.7 GW) is an upper bound, not a forecast of adoption.
+5. Technical potential (99.1 GW statewide) is an upper bound, not a forecast of adoption.
 6. Shading is a crowding heuristic, not a 3D calculation; load shape and feed-in rate are assumptions.
 7. Commercial/industrial tariffs are unverified (industrial ₹8/unit is an assumption).
+8. The classifier is not bit-reproducible: the test buildings are now fixed, but the forest still depends
+   on data layout. Laptop and Databricks builds differ by 14% in institutional counts and under 0.1% in
+   viable homes.
+9. Gold's watermarks track data, not config. After changing `config/`, run with `--full-refresh`.

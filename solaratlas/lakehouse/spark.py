@@ -24,6 +24,12 @@ def get() -> SparkSession:
         return _spark
     if on_databricks():
         _spark = SparkSession.builder.getOrCreate()
+        # Serverless runs UDFs in sandboxes that don't have this project on their path, so ship our
+        # functions inside the pickled UDF instead of as an import.
+        from pyspark import cloudpickle
+
+        import solaratlas
+        cloudpickle.register_pickle_by_value(solaratlas)
         return _spark
     from delta import configure_spark_with_delta_pip
 
@@ -60,3 +66,21 @@ def stop():
     if _spark is not None and not on_databricks():
         _spark.stop()
     _spark = None
+
+
+def keep(df, name: str):
+    """Reuse a result several times: cache() locally, a small Delta table on Databricks.
+
+    cache() is not available on serverless by default, and recomputing a seeded random split
+    could change which rows it picks.
+    """
+    if not on_databricks():
+        return df.cache()
+    path = config.table_path("_tmp", name)
+    df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(path)
+    return get().read.format("delta").load(path)
+
+
+def release(df):
+    if not on_databricks():
+        df.unpersist()

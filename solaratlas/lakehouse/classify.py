@@ -1,6 +1,6 @@
 """Building-type classifier: residential / commercial / industrial / institutional.
 
-Only ~0.6% of Indian footprints carry a type tag (from OSM). We train a Spark ML random forest
+Only ~0.1% of Tamil Nadu footprints carry a type tag (from OSM). We train a Spark ML random forest
 on those, using shape, density, nearby places and land use, then label every other building.
 Tagged buildings keep their tag (type_source = 'osm'); the rest get the model's class and its
 probability (type_source = 'model').
@@ -23,7 +23,7 @@ from pyspark.sql import functions as F
 
 from solaratlas import config
 from solaratlas.lakehouse.delta_utils import upsert_changed
-from solaratlas.lakehouse.spark import get
+from solaratlas.lakehouse.spark import get, keep, release
 
 NUMERIC = ["log_area", "perim_ratio", "compactness", "elongation", "n_vertices", "built_frac_ring",
            "ring_n", "r9_buildings", "r9_mean_area",
@@ -34,6 +34,16 @@ MIN_LABELS = 200
 
 def model_dir(region_key: str):
     return config.DATA / "models" / f"building_type_{region_key}"
+
+
+def split(data):
+    """80/20 by a hash of the building id, so a building is always on the same side.
+
+    randomSplit(seed) depends on row order and partitioning: on Databricks the train and test halves
+    came from two differently partitioned reads, overlapped, and reported 84.7% instead of ~80%.
+    """
+    bucket = F.pmod(F.xxhash64(F.col("id"), F.lit("classifier-split")), F.lit(5))
+    return data.where(bucket != 0), data.where(bucket == 0)
 
 
 def train_and_predict(region_key: str, run_id: str) -> dict:
@@ -51,7 +61,7 @@ def train_and_predict(region_key: str, run_id: str) -> dict:
     total = sum(counts.values())
     weights = F.create_map(*[x for k, v in counts.items() for x in (F.lit(k), F.lit(total / (len(counts) * v)))])
     data = labelled.withColumn("w", weights[F.col("osm_type")])
-    train, test = data.randomSplit([0.8, 0.2], seed=42)
+    train, test = split(data)
 
     label_ix = StringIndexer(inputCol="osm_type", outputCol="label").fit(data)
     stages = [
@@ -64,7 +74,7 @@ def train_and_predict(region_key: str, run_id: str) -> dict:
         IndexToString(inputCol="prediction", outputCol="predicted_type", labels=label_ix.labels),
     ]
     model = Pipeline(stages=stages).fit(train)
-    pred = model.transform(test).cache()
+    pred = keep(model.transform(test), f"classify_pred_{region_key}")
     ev = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction")
     metrics = {
         "region": region_key, "run_id": run_id, "trained_at": datetime.now(UTC).isoformat(),
@@ -72,6 +82,9 @@ def train_and_predict(region_key: str, run_id: str) -> dict:
         "accuracy": round(ev.evaluate(pred, {ev.metricName: "accuracy"}), 4),
         "weighted_f1": round(ev.evaluate(pred, {ev.metricName: "f1"}), 4),
     }
+    if metrics["train_rows"] + metrics["test_rows"] != n_lab:
+        raise RuntimeError(f"train/test split does not add up: {metrics['train_rows']} + "
+                           f"{metrics['test_rows']} != {n_lab} labels")
     per_class, f1s = {}, []
     for i, name in enumerate(label_ix.labels):
         p = ev.evaluate(pred, {ev.metricName: "precisionByLabel", ev.metricLabel: float(i)})
@@ -104,7 +117,7 @@ def train_and_predict(region_key: str, run_id: str) -> dict:
     imp = sorted(zip(names, rf.featureImportances.toArray().tolist(), strict=False),
                  key=lambda t: -t[1])[:10]
     metrics["top_features"] = [[n, round(v, 4)] for n, v in imp]
-    pred.unpersist()
+    release(pred)
     model.write().overwrite().save(str(model_dir(region_key)))
     _save_metrics(metrics)
     print(f"[classify] acc={metrics['accuracy']} macroF1={metrics['macro_f1']} labels={counts}")

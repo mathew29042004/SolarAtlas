@@ -203,3 +203,24 @@ def test_quality_gate_passes_and_fails(lake):
         quality.run(REGION, "r4", stats)
     stats_ok = {"bronze_rows": len(GOOD), "quarantined": 0}
     quality.run(REGION, "r5", stats_ok)
+
+
+def test_units_expr_matches_python_model(lake):
+    from solaratlas.lakehouse import gold
+    from solaratlas.lakehouse.spark import get
+    from solaratlas.model import solar
+    areas = [10.0, 33.5, 100.0, 116.83333, 117.0, 117.5, 250.1666, 333.3, 5000.0]
+    df = get().createDataFrame([(a,) for a in areas], "footprint_m2 double").withColumn("u", gold.units_expr())
+    assert {r.footprint_m2: r.u for r in df.collect()} == {a: solar.estimated_units(a) for a in areas}
+
+
+def test_classifier_split_is_disjoint_complete_and_order_independent(lake):
+    from solaratlas.lakehouse.classify import split
+    from solaratlas.lakehouse.spark import get
+    df = get().createDataFrame([(f"b{i}",) for i in range(5000)], "id string")
+    train, test = split(df)
+    tr, te = ({r.id for r in x.collect()} for x in (train, test))
+    assert not tr & te and len(tr) + len(te) == 5000
+    assert 0.17 < len(te) / 5000 < 0.23
+    _, te2 = split(df.orderBy(df.id.desc()).repartition(7))     # different order and layout
+    assert {r.id for r in te2.collect()} == te

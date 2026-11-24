@@ -26,12 +26,11 @@ def buildings(region_key: str, run_id: str) -> int:
     if not files:
         raise FileNotFoundError(f"nothing landed under {root}; run ingest first")
     print(f"[bronze] {len(files)} landing file(s)")
-    prefix = str(config.LANDING.parent) + "/"
     df = (
         spark.read.parquet(*files)
         .withColumn("_release", F.lit(release))
         .withColumn("_region", F.lit(region_key))
-        .withColumn("_source_file", F.regexp_replace(F.input_file_name(), "^file:" + prefix, ""))
+        .withColumn("_source_file", F.regexp_replace(F.col("_metadata.file_path"), "^.*/landing/", "landing/"))
         .withColumn("_ingested_at", F.current_timestamp())
         .withColumn("_run_id", F.lit(run_id))
     )

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 import uuid
 from datetime import UTC, datetime
@@ -27,7 +28,8 @@ STAGES = ["ingest", "bronze", "silver", "features", "classify", "gold", "quality
 def run(region_key: str, start: str = "ingest", skip_publish: bool = False,
         full_refresh: bool = False) -> dict:
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]
-    timings, stats, status, error = {}, {}, "success", None
+    timings, status, error = {}, "success", None
+    stats = {"driver_mem": os.environ.get("SA_SPARK_MEM", "2g"), "start": start, "full_refresh": full_refresh}
     todo = STAGES[STAGES.index(start):]
     if skip_publish:
         todo = [s for s in todo if s != "publish"]
@@ -105,6 +107,11 @@ def _log(run_id, region_key, status, error, timings, stats, seconds):
         row = dict(run_id=run_id, region=region_key, status=status, error=error,
                    seconds=float(seconds), timings=json.dumps(timings),
                    stats=json.dumps(stats, default=str), finished_at=datetime.now(UTC))
+        # The published snapshot cannot contain the run that published it, so reports read this file.
+        log = config.ROOT / "logs" / "runs.jsonl"
+        log.parent.mkdir(exist_ok=True)
+        with log.open("a") as f:
+            f.write(json.dumps({**row, "data": str(config.DATA)}, default=str) + "\n")
         schema = ("run_id string, region string, status string, error string, seconds double, "
                   "timings string, stats string, finished_at timestamp")
         get().createDataFrame([row], schema).write.format("delta").mode("append") \

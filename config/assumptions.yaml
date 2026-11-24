@@ -27,6 +27,9 @@ residential:
   units_per_m2_bimonthly: 3.0
   min_units: 100
   max_units: 2000
+  # Rounding of the estimate. Keep it fine: with 50-unit steps ~957k homes shared one value, so
+  # whole blocks flipped between viable and not together and two different policies tied exactly.
+  units_step: 1
 classifier:
   # The model is trained with class weights so it learns rare types, which makes it over-predict
   # them across 25M mostly-residential buildings (1.7M "institutional" otherwise). Deployed rule:
