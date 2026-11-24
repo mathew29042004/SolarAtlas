@@ -5,8 +5,9 @@
 SolarAtlas answers two questions: *how much power could Tamil Nadu's rooftops make?* and *for my
 building, is solar worth the money?* It pulls every building footprint in the state from Overture Maps,
 joins it with NASA satellite irradiance, places and land use, classifies each building
-(home / shop / factory / institution), and prices a rooftop system for it under the real TNPDCL tariff
-and the PM Surya Ghar subsidy. It then rolls all of that up to wards, districts and policy scenarios.
+(home / shop / factory / institution), and prices a rooftop system for it under an approximate TNPDCL
+tariff (unverified) and the PM Surya Ghar subsidy. It then rolls all of that up to wards, districts and
+policy scenarios.
 
 It's built as a production-style data platform: **PySpark + Delta Lake** medallion layers, a
 **Spark ML** classifier, **Change Data Feed** incremental processing, a quality gate that blocks bad
