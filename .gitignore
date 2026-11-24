@@ -8,5 +8,4 @@ __pycache__/
 *.duckdb
 .DS_Store
 logs/
-.claude/settings.local.json
 .databricks
