@@ -283,7 +283,7 @@ def building_solar(region_key: str, run_id: str, incremental: bool = True) -> di
     total = _count(gold_path, region_key)
     if n_changed > FULL_REBUILD_SHARE * total or n_changed > MAX_BROADCAST_IDS:
         changes.unpersist()
-        print(f"[gold] {n_changed:,} of {total:,} changed (> {FULL_REBUILD_SHARE:.0%}); full rebuild instead")
+        print(f"[gold] {n_changed:,} of {total:,} changed (over {FULL_REBUILD_SHARE:.0%} or {MAX_BROADCAST_IDS:,} ids); full rebuild instead")
         b = _materialise(base(region_key), f"gold_base_{region_key}")
         _write(_solar_rows(b, run_id), "building_solar", region_key)
         save_marks()

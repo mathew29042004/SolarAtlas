@@ -20,9 +20,9 @@ Bundle** that runs the same code as a 7-task job.
 | Buildings analysed | **25,149,034** (30.6M downloaded, 5.45M outside the state clipped, 521 quarantined) |
 | Full pipeline on a 16 GB laptop | **~12 min**, bronze → publish |
 | Technical rooftop potential | 99.1 GW → 136 TWh/yr (upper bound, not a forecast) |
-| Roofs that pay back within 7 years | **42.3 lakh** (30.2 GW), needing ₹1.49 lakh crore of investment |
-| Homes among them | 19.3 lakh of 2.27 crore |
-| Building-type classifier | 80.6% accuracy, macro-F1 0.73 on 25k held-out-tested OSM labels |
+| Roofs that pay back within 7 years | **30.7 lakh** (9.6 GW), needing ₹51,180 crore of investment |
+| Homes among them | 27.7 lakh |
+| Building-type classifier | Spark ML random forest on 25k OSM labels; deployed-rule accuracy in RESULTS.md |
 | Tests | unit, API, Spark integration; 12-check quality gate on every run |
 
 Full, regenerated numbers: [docs/RESULTS.md](docs/RESULTS.md) (written by `scripts/results.py`).
@@ -30,8 +30,8 @@ Full, regenerated numbers: [docs/RESULTS.md](docs/RESULTS.md) (written by `scrip
 **What the data says**
 
 - **Policy:** cheaper panels (−20% system cost) make as many homes viable as raising the subsidy by a
-  third (28.2 lakh vs 19.3 lakh today), but cost the state **₹3,549 crore less** in subsidy.
-  Withdrawing the subsidy cuts viable homes by 72%.
+  third (37.3 lakh vs 27.7 lakh today), but cost the state **₹5,471 crore less** in subsidy.
+  Withdrawing the subsidy cuts viable homes by 56%.
 - **The 500-unit cliff:** homes on ≤500 units per bill get 200 free units, so solar barely pays for
   light users. Above 500 units every unit is billed at higher slabs, and paybacks drop to about 3 years.
 - **Metering matters as much as subsidy:** for a 1,200-unit Chennai home, net metering is worth ~39%

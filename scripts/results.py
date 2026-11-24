@@ -123,6 +123,14 @@ def main():
     w("| Class | Labels | Precision | Recall | F1 |\n|---|---|---|---|---|")
     for k, v in model["per_class"].items():
         w(f"| {k} | {n(model['labels'][k])} | {v['precision']} | {v['recall']} | {v['f1']} |")
+    dep = model.get("deployed")
+    if dep:
+        w(f"\n**Deployed rule** (non-residential only at ≥ {dep['threshold']:.0%} confidence, since class "
+          f"weighting otherwise over-predicts rare types across 25M buildings), same held-out set: "
+          f"accuracy {dep['accuracy']:.1%}.\n")
+        w("| Class | Precision | Recall |\n|---|---|---|")
+        for k, v in dep["per_class"].items():
+            w(f"| {k} | {v['precision']} | {v['recall']} |")
     w(f"\nTop features: {', '.join(f[0] for f in model['top_features'][:6])}.\n")
     w("## Assumptions that move these numbers\n")
     w("Unverified tariffs (TN domestic slabs, commercial ₹8.80, industrial ₹8.00), ₹60k/kW home capex, "
