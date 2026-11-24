@@ -1,0 +1,11 @@
+.venv/
+.tools/
+.cache/
+data/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.duckdb
+.DS_Store
+logs/
+.claude/settings.local.json

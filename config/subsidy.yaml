@@ -1,0 +1,7 @@
+# PM Surya Ghar: Muft Bijli Yojana central financial assistance (residential, general-category states).
+# Sources checked 2026-11-23: solar.delhi.gov.in/page/central-subsidy, pune.gov.in scheme page.
+pm_surya_ghar:
+  slabs:
+    - {upto_kwp: 2, inr_per_kwp: 30000}
+    - {upto_kwp: 3, inr_per_kwp: 18000}
+  cap_inr: 78000

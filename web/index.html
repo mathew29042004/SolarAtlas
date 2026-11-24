@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SolarAtlas India</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="app">
+<aside>
+  <header>
+    <h1>Solar<span>Atlas</span> India</h1>
+    <p class="sub" id="regionName">Rooftop solar potential for every building</p>
+    <div class="search">
+      <input id="q" type="search" placeholder="Search a district or ward…" autocomplete="off" aria-label="Search">
+      <div id="results" class="results" hidden></div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="rankings">Rankings</button>
+      <button role="tab" data-tab="scenarios">Policy</button>
+      <button role="tab" data-tab="installers">Installers</button>
+      <button role="tab" data-tab="ops">Pipeline</button>
+    </nav>
+  </header>
+
+  <section data-panel="overview">
+    <div class="stats" id="stats"></div>
+    <h2>Is solar worth it for my home?</h2>
+    <div class="card">
+      <label for="units">Units per bill (2 months) <span id="unitsOut">600</span></label>
+      <input type="range" id="units" min="100" max="2000" step="50" value="600">
+      <div class="result" id="calc"></div>
+      <div class="verdict" id="verdict"></div>
+      <p class="note" id="tariffNote"></p>
+    </div>
+    <h2>Hour by hour: what your roof covers</h2>
+    <div class="card" id="meterCard">
+      <svg id="dayChart" viewBox="0 0 340 140" width="100%" aria-label="Typical day: solar output and household use"></svg>
+      <div class="result" id="meterStats"></div>
+      <table id="regimeTable" style="margin-top:8px"></table>
+      <p class="note">Simulated over every hour of 2025 (NASA POWER) with an assumed household load
+      shape. Feed-in rate ₹3/kWh is an assumption.</p>
+    </div>
+    <h2>Payback vs. consumption</h2>
+    <div class="card"><svg id="curve" viewBox="0 0 340 150" width="100%"></svg>
+      <p class="note">Tamil Nadu gives 200 free units to homes on ≤500 units, so small users save little.
+      Above 500 units, every unit is billed at higher slabs and solar pays back fast.</p></div>
+    <h2>Potential by building type</h2>
+    <div class="card bars" id="types"></div>
+  </section>
+
+  <section data-panel="rankings" hidden>
+    <h2>Districts by rooftop potential</h2>
+    <div class="card table-wrap"><table id="districtTable"></table></div>
+    <h2 id="wardTitle">Top wards and towns</h2>
+    <div class="card table-wrap"><table id="wardTable"></table></div>
+  </section>
+
+  <section data-panel="scenarios" hidden>
+    <h2>Policy what-ifs <span id="scDistrict" class="badge"></span></h2>
+    <p class="note">A roof is "viable" if it pays back within 7 years. Each scenario re-prices every roof.</p>
+    <label class="inline">District
+      <select id="scSelect"><option value="">All of Tamil Nadu</option></select></label>
+    <div id="scenarioCards" style="margin-top:10px"></div>
+  </section>
+
+  <section data-panel="installers" hidden>
+    <h2>Biggest viable roofs</h2>
+    <div class="filters">
+      <select id="instDistrict" aria-label="District"><option value="">All districts</option></select>
+      <select id="instType" aria-label="Building type">
+        <option value="industrial">Industrial</option><option value="commercial">Commercial</option>
+        <option value="institutional">Institutional</option><option value="residential">Homes</option>
+      </select>
+    </div>
+    <div class="card table-wrap"><table id="roofTable"></table></div>
+    <p class="note">Click a row to fly to the roof. Building type is model-estimated unless tagged in OpenStreetMap.</p>
+  </section>
+
+  <section data-panel="ops" hidden>
+    <h2>Latest pipeline runs</h2>
+    <div class="card table-wrap"><table id="runTable"></table></div>
+    <h2>Quality gate (latest run)</h2>
+    <div class="card table-wrap"><table id="dqTable"></table></div>
+    <h2>Building-type classifier</h2>
+    <div class="card" id="model"></div>
+  </section>
+
+  <footer class="note">Footprints © OpenStreetMap contributors, Overture Maps (ODbL), Google Open Buildings,
+  Microsoft. Irradiance: NASA POWER 2001–2025. Screening estimates, not a site survey.
+  <a href="/docs">API docs</a></footer>
+</aside>
+<div class="mapwrap">
+  <div id="map"></div>
+  <div class="legend"><div id="legendTitle">Potential per hexagon</div>
+    <div class="ramp"><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="r4"></i><i class="r5"></i></div>
+    <div class="ends"><span>low</span><span>high</span></div></div>
+</div>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

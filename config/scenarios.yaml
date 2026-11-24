@@ -1,0 +1,27 @@
+# Policy what-ifs. Each scenario overrides any config value (dotted path -> value).
+# `baseline` must exist and override nothing.
+viable_payback_years: 7          # a roof counts as "viable" if it pays back within this
+scenarios:
+  baseline:
+    label: Current policy
+    overrides: {}
+  subsidy_up:
+    label: Subsidy +33% (Rs 40k/kW first 2 kW)
+    overrides:
+      subsidy.pm_surya_ghar.slabs: [{upto_kwp: 2, inr_per_kwp: 40000}, {upto_kwp: 3, inr_per_kwp: 24000}]
+      subsidy.pm_surya_ghar.cap_inr: 104000
+  free_units_100:
+    label: Back to 100 free units (2024 rules)
+    overrides:
+      tariff.version: "2024-07"
+  cheaper_panels:
+    label: System cost falls 20%
+    overrides:
+      assumptions.economics.capex_inr_per_kwp: 48000
+      nondomestic.categories.commercial.capex_inr_per_kwp: 40000
+      nondomestic.categories.industrial.capex_inr_per_kwp: 36000
+      nondomestic.categories.institutional.capex_inr_per_kwp: 40000
+  no_subsidy:
+    label: Subsidy withdrawn
+    overrides:
+      subsidy.pm_surya_ghar.cap_inr: 0

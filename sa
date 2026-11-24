@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# SolarAtlas command line. Usage: ./sa <command> [args]
+set -euo pipefail
+cd "$(dirname "$0")"
+source ./env.sh
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  setup)    uv sync ;;
+  ingest)   python -m solaratlas.ingest.buildings "$@" && python -m solaratlas.ingest.irradiance "$@" ;;
+  run)      python -m solaratlas.pipeline run "$@" ;;
+  serve)    exec uvicorn api.app:app --port "${PORT:-8000}" ;;
+  test)     pytest -q "$@" ;;
+  test-spark) SA_SPARK_MEM=1g timeout 900 pytest -m spark -q "$@"; pkill -9 -f SparkSubmit || true ;;
+  lint)     ruff check solaratlas api tests ;;
+  maintain) python -m solaratlas.maintenance ;;
+  clean)    uv cache clean; rm -rf .cache/spark .cache/uv .pytest_cache .ruff_cache
+            find . -name __pycache__ -type d -prune -exec rm -rf {} +; pkill -9 -f SparkSubmit || true
+            du -sh . ;;
+  *) cat <<'H'
+./sa setup                 install Python deps into .venv (all caches stay in this folder)
+./sa ingest [--region R]   land Overture buildings + NASA POWER climatology
+./sa run [--region R] [--from STAGE] [--no-publish]
+                           bronze -> silver -> gold -> quality gate -> publish
+./sa serve                 API + map dashboard on http://localhost:8000
+./sa test                  fast tests (no Spark)
+./sa test-spark            lakehouse tests (starts a JVM)
+./sa maintain              OPTIMIZE + VACUUM Delta tables
+./sa clean                 delete caches and stray JVMs
+H
+  ;;
+esac

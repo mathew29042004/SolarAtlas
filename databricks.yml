@@ -1,0 +1,104 @@
+# Databricks Asset Bundle for SolarAtlas.
+#   databricks bundle validate
+#   databricks bundle deploy -t dev
+#   databricks bundle run solaratlas_pipeline -t dev
+# Landing files are produced on the laptop (Free Edition limits outbound internet) and uploaded to
+# the volume with scripts/upload_landing.sh. data/ is gitignored, so it is never synced as code.
+bundle:
+  name: solaratlas
+
+variables:
+  region:
+    default: tamil_nadu
+  catalog:
+    default: solaratlas
+  schema:
+    default: core
+  data_path:
+    description: Unity Catalog volume holding landing/, lake/ and models/
+    default: /Volumes/solaratlas/core/data
+
+include: []
+
+resources:
+  schemas:
+    core:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: SolarAtlas lakehouse
+  volumes:
+    data:
+      catalog_name: ${var.catalog}
+      schema_name: ${var.schema}
+      name: data
+      volume_type: MANAGED
+
+  jobs:
+    solaratlas_pipeline:
+      name: solaratlas-${var.region}
+      max_concurrent_runs: 1
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+            dependencies: [pyyaml, "shapely>=2.0", "h3>=4.1", requests, "duckdb>=1.1"]
+      parameters:
+        - {name: region, default: "${var.region}"}
+      tasks:
+        - task_key: bronze
+          environment_key: default
+          spark_python_task:
+            python_file: solaratlas/jobs/run_stage.py
+            parameters: [--stage, bronze, --region, "{{job.parameters.region}}",
+                         --run-id, "{{job.run_id}}", --data, "${var.data_path}"]
+        - task_key: silver
+          depends_on: [{task_key: bronze}]
+          environment_key: default
+          spark_python_task:
+            python_file: solaratlas/jobs/run_stage.py
+            parameters: [--stage, silver, --region, "{{job.parameters.region}}",
+                         --run-id, "{{job.run_id}}", --data, "${var.data_path}"]
+        - task_key: features
+          depends_on: [{task_key: silver}]
+          environment_key: default
+          spark_python_task:
+            python_file: solaratlas/jobs/run_stage.py
+            parameters: [--stage, features, --region, "{{job.parameters.region}}",
+                         --run-id, "{{job.run_id}}", --data, "${var.data_path}"]
+        - task_key: classify
+          depends_on: [{task_key: features}]
+          environment_key: default
+          spark_python_task:
+            python_file: solaratlas/jobs/run_stage.py
+            parameters: [--stage, classify, --region, "{{job.parameters.region}}",
+                         --run-id, "{{job.run_id}}", --data, "${var.data_path}"]
+        - task_key: gold
+          depends_on: [{task_key: classify}]
+          environment_key: default
+          spark_python_task:
+            python_file: solaratlas/jobs/run_stage.py
+            parameters: [--stage, gold, --region, "{{job.parameters.region}}",
+                         --run-id, "{{job.run_id}}", --data, "${var.data_path}"]
+        - task_key: quality_gate
+          depends_on: [{task_key: gold}]
+          environment_key: default
+          spark_python_task:
+            python_file: solaratlas/jobs/run_stage.py
+            parameters: [--stage, quality, --region, "{{job.parameters.region}}",
+                         --run-id, "{{job.run_id}}", --data, "${var.data_path}"]
+        - task_key: maintain
+          depends_on: [{task_key: quality_gate}]
+          environment_key: default
+          spark_python_task:
+            python_file: solaratlas/jobs/run_stage.py
+            parameters: [--stage, maintain, --region, "{{job.parameters.region}}",
+                         --run-id, "{{job.run_id}}", --data, "${var.data_path}"]
+      schedule:
+        quartz_cron_expression: "0 0 3 ? * MON"    # weekly; Overture publishes monthly
+        timezone_id: Asia/Kolkata
+        pause_status: PAUSED
+
+targets:
+  dev:
+    mode: development
+    default: true

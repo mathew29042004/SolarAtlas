@@ -1,0 +1,43 @@
+# Physical and economic assumptions. Each value names its basis so it can be defended.
+# Change a value here, rebuild Gold, and every number downstream follows.
+roof:
+  # Share of a footprint usable for panels after setbacks, water tanks, stair rooms, shade.
+  usable_fraction_by_size:          # footprint m2 upper bound -> fraction
+    - {max_m2: 50,    fraction: 0.40}
+    - {max_m2: 150,   fraction: 0.55}
+    - {max_m2: 500,   fraction: 0.60}
+    - {max_m2: 1000000000, fraction: 0.65}
+  m2_per_kwp: 10.0                  # MNRE rule of thumb: ~10 m2 shadow-free area per kWp
+  min_footprint_m2: 15              # below this we do not consider a rooftop system
+  max_footprint_m2: 50000           # above this the footprint is likely a merge error -> quarantine
+pv:
+  performance_ratio: 0.77           # inverter, wiring, soiling, mismatch losses (typical 0.75-0.80)
+  temp_coeff_per_c: -0.0035         # mono-PERC Pmax coefficient
+  cell_temp_rise_c: 25              # cell temperature above ambient at irradiance
+  degradation_per_year: 0.005
+  lifetime_years: 25
+economics:
+  capex_inr_per_kwp: 60000          # 2026 residential turnkey, assumption; replace with vendor quotes
+  om_inr_per_kwp_year: 500
+  residential_cap_kwp: 3            # size used for the household economics card (subsidy tops out at 3 kW)
+  size_options_kwp: [1, 1.5, 2, 2.5, 3]   # installers rarely do < 1 kW homes; recommender picks from these
+residential:
+  # Bimonthly consumption is not public per house, so it is estimated from footprint size.
+  # 100 m2 -> 300 units, 200 m2 -> 600 units. ASSUMPTION: calibrate with TNPDCL consumption data.
+  units_per_m2_bimonthly: 3.0
+  min_units: 100
+  max_units: 2000
+classifier:
+  # The model is trained with class weights so it learns rare types, which makes it over-predict
+  # them across 25M mostly-residential buildings (1.7M "institutional" otherwise). Deployed rule:
+  # a building is non-residential only when the model is at least this confident.
+  nonresidential_min_prob: 0.7
+shading:
+  # No building heights in India (0.16% of footprints have one), so shading is a crowding proxy:
+  # loss grows with the built-up share of the surrounding ~150 m ring, capped. Heuristic.
+  free_below_built_fraction: 0.35
+  loss_per_unit_fraction: 0.30
+  max_loss: 0.15
+  large_roof_m2: 300            # big roofs are less affected by neighbours: half the loss
+grid:
+  co2_t_per_mwh: 0.71               # CEA CO2 baseline database, all-India grid; verify latest version

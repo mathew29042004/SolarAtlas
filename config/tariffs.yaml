@@ -1,0 +1,48 @@
+# Domestic tariffs as versioned records (loaded into an SCD Type 2 Delta table).
+# Units are per BIMONTHLY billing cycle; slabs are telescopic (each rate applies to units in its slab).
+# `verified: false` = taken from secondary sources; confirm against the TNERC order before quoting.
+tn_domestic:
+  - version: 2024-07
+    effective_from: 2024-07-01
+    effective_to: 2026-05-09
+    source: TNERC tariff order 2024 (LT I-A domestic) as reported; secondary sources
+    verified: false
+    free_units: 100
+    fixed_charge_inr: 0
+    # Bills of up to 500 units use `low`; above 500 units the whole bill uses `high`.
+    switch_at_units: 500
+    low:
+      - {upto: 100,  rate: 0.00}
+      - {upto: 200,  rate: 2.35}
+      - {upto: 400,  rate: 4.70}
+      - {upto: 500,  rate: 6.30}
+    high:
+      - {upto: 100,  rate: 0.00}
+      - {upto: 400,  rate: 4.70}
+      - {upto: 500,  rate: 6.30}
+      - {upto: 600,  rate: 8.40}
+      - {upto: 800,  rate: 9.45}
+      - {upto: 1000, rate: 10.50}
+      - {upto: null, rate: 11.55}
+  - version: 2026-05
+    effective_from: 2026-05-10
+    effective_to: null
+    source: >-
+      Govt directive 2026-05-10 + TNERC provisional subsidy order: 200 free units for bills
+      up to 500 units; 100 free units above 500 (solarquarter.com, 2026-05-29). Rates unchanged.
+    verified: false
+    free_units: 200
+    fixed_charge_inr: 0
+    switch_at_units: 500
+    low:
+      - {upto: 200,  rate: 0.00}
+      - {upto: 400,  rate: 4.70}
+      - {upto: 500,  rate: 6.30}
+    high:
+      - {upto: 100,  rate: 0.00}
+      - {upto: 400,  rate: 4.70}
+      - {upto: 500,  rate: 6.30}
+      - {upto: 600,  rate: 8.40}
+      - {upto: 800,  rate: 9.45}
+      - {upto: 1000, rate: 10.50}
+      - {upto: null, rate: 11.55}

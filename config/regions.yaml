@@ -1,0 +1,23 @@
+# Regions the pipeline can build. bbox = [lon_min, lat_min, lon_max, lat_max] (WGS84).
+default: tamil_nadu
+regions:
+  coimbatore:
+    name: Coimbatore city
+    state: Tamil Nadu
+    discom: TNPDCL
+    tariff: tn_domestic
+    bbox: [76.88, 10.93, 77.06, 11.08]
+  coimbatore_core:          # small slice for tests and quick demos
+    name: Coimbatore (RS Puram / Gandhipuram)
+    state: Tamil Nadu
+    discom: TNPDCL
+    tariff: tn_domestic
+    bbox: [76.94, 11.00, 76.98, 11.03]
+  tamil_nadu:               # statewide: tiled extract, clipped to the state polygon
+    name: Tamil Nadu
+    state: Tamil Nadu
+    state_code: IN-TN
+    discom: TNPDCL
+    tariff: tn_domestic
+    tiled: true
+    bbox: [76.2329, 8.0769, 80.3593, 13.5639]

@@ -1,0 +1,13 @@
+# Every external source, its licence and how it was checked. Data test: 2026-11-23.
+overture_buildings:
+  release: "2026-11-18.0"
+  url: s3://overturemaps-us-west-2/release/{release}/theme=buildings/type=building/*.parquet
+  licence: ODbL-1.0 (Overture buildings theme; includes OSM, Google Open Buildings CC-BY-4.0/ODbL, Microsoft)
+  attribution: "© OpenStreetMap contributors, Overture Maps Foundation, Google Open Buildings, Microsoft"
+  checked: 2026-11-23 (release listed on public S3; licence from docs.overturemaps.org/guides/buildings)
+nasa_power:
+  url: https://power.larc.nasa.gov/api/temporal/climatology/point
+  parameters: [ALLSKY_SFC_SW_DWN, T2M]
+  community: RE
+  licence: NASA open data, no API key; cite "NASA Langley Research Center POWER Project"
+  checked: 2026-11-23 (no-auth endpoint confirmed; read units from the response, never assume)

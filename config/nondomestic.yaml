@@ -1,0 +1,21 @@
+# Non-domestic rooftops: businesses mostly consume in daytime, so most solar is self-consumed
+# and offsets the full energy rate. No PM Surya Ghar subsidy. Rates are UNVERIFIED.
+categories:
+  commercial:
+    energy_rate_inr: 8.80        # LT V small commercial after Jul-2025 revision (nobroker.in blog; verify with TNERC)
+    capex_inr_per_kwp: 50000     # 10-100 kW systems are cheaper per kW than homes (assumption)
+    self_consumption: 0.90
+    cap_kwp: 100                 # LT connection practical limit (assumption)
+    verified: false
+  industrial:
+    energy_rate_inr: 8.00        # ASSUMPTION: no source found for LT III-B; replace from TNERC order
+    capex_inr_per_kwp: 45000
+    self_consumption: 0.95
+    cap_kwp: 150
+    verified: false
+  institutional:                 # schools, hospitals, temples, offices of government
+    energy_rate_inr: 8.80
+    capex_inr_per_kwp: 50000
+    self_consumption: 0.80
+    cap_kwp: 100
+    verified: false
